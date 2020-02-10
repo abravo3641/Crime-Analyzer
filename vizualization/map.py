@@ -1,7 +1,5 @@
 import sys, json, gmplot
 
-f = open('./file.txt',"a")
-
 def main():
     #Getting arguments from Node
     crimes, currentLocation, destinationLocation = getArguments()
