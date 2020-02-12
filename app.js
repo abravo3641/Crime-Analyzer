@@ -38,14 +38,52 @@ app.get('/crimeAnalyzer', (req,res) => {
 
         // Make sliding Window
         let window = constructWindow(currentLocation,destinationLocation);
+        
+        // Move the sliding Window
+        let grid = moveWindow(currentLocation,destinationLocation,window);
+
         // Call python Script to display map
-        printToMap(crimes,currentLocation,destinationLocation,window);
+        printToMap(crimes,currentLocation,destinationLocation,window,grid);
         
         res.send('done!');
     });
 
 })
 
+// Returns an array of ALL the squares the sliding window slides through
+function moveWindow(currentLocation, destinationLocation ,window){
+    const bigSquare = getBigSquare(currentLocation,destinationLocation);
+    let grid = [];
+    let {p1,p2,p3,p4} = window;
+    //Dimensions of smaller square
+    const lSmall = p1.lat - p3.lat;
+    const wSmall = Math.abs(p1.long) - Math.abs(p2.long);
+
+    // Added toFixed(8) for rounding errors 
+    while(p1.lat.toFixed(8) > bigSquare.p3.lat.toFixed(8)) {
+        console.log(p1)
+        while(Math.abs(p1.long.toFixed(8)) > Math.abs(bigSquare.p2.long.toFixed(8))) {
+            grid.push({p1: {...p1},p2: {...p2},p3: {...p3},p4: {...p4}});
+            p1.long += wSmall;
+            p2.long += wSmall;
+            p3.long += wSmall;
+            p4.long += wSmall;
+        }
+        //Reset square back to the left and update latitude
+        p1.long = p3.long = bigSquare.p1.long;
+        p2.long = p4.long = p1.long + wSmall;
+        p1.lat = p2.lat = p1.lat - lSmall;
+        p3.lat = p4.lat = p3.lat - lSmall;
+
+    }
+
+    
+
+    return grid;
+    
+}
+
+// This returns the initial posisiton of the sliding window
 function constructWindow(currentLocation,destinationLocation) {
     const k = 0.1; //hard coded k value
 
@@ -80,9 +118,9 @@ function getBigSquare(currentLocation,destinationLocation) {
     }
 }
 
-function printToMap(crimes, currentLocation, destinationLocation, window) {
+function printToMap(crimes, currentLocation, destinationLocation, window, grid) {
     const {spawn} = require("child_process");
-    const pythonProcess = spawn('python',["./vizualization/map.py",JSON.stringify(crimes),JSON.stringify(currentLocation),JSON.stringify(destinationLocation),JSON.stringify(window)]);
+    const pythonProcess = spawn('python',["./vizualization/map.py",JSON.stringify(crimes),JSON.stringify(currentLocation),JSON.stringify(destinationLocation),JSON.stringify(window),JSON.stringify(grid)]);
 }
 
 app.listen(port, () => {

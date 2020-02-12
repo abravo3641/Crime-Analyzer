@@ -2,7 +2,7 @@ import sys, json, gmplot
 
 def main():
     #Getting arguments from Node
-    crimes, currentLocation, destinationLocation, window = getArguments()
+    crimes, currentLocation, destinationLocation, window, grid = getArguments()
     
     #List of lat and long for all crimes
     latitude_list, longitude_list = getCrimeList(crimes)
@@ -20,14 +20,17 @@ def main():
     #Display destination location
     gmap.scatter([destinationL[0]],[destinationL[1]], '#00ff00', size = 30, marker = False ) 
 
-    # Draw Box 
-    drawBigBox(gmap, currentL, destinationL)
-
     # display the crimes to the map
     gmap.scatter( latitude_list, longitude_list, '#ff0000', size = 10, marker = False ) 
 
     # display initial position of sliding window on the map
-    drawSlidingWindow(gmap,window)
+    # drawSlidingWindow(gmap,window)
+
+    # display grid of sliding window
+    drawGrid(gmap,grid)
+
+    # Draw Big Box 
+    drawBigBox(gmap, currentL, destinationL)
 
     # Write to the html path
     gmap.draw("./vizualization/file.html" ) 
@@ -38,7 +41,8 @@ def getArguments():
     currentLocation = json.loads(sys.argv[2])
     destinationLocation = json.loads(sys.argv[3])
     window = json.loads(sys.argv[4])
-    return crimes,currentLocation,destinationLocation,window
+    grid = json.loads(sys.argv[5])
+    return crimes,currentLocation,destinationLocation,window,grid
 
 def getCrimeList(crimes):
     latitude_list = []
@@ -61,6 +65,15 @@ def drawSlidingWindow(gmap,window):
     gmap.plot([window['p2']['lat'],window['p4']['lat']],[window['p2']['long'],window['p4']['long']],'black', edge_width = 3.5)
     gmap.plot([window['p4']['lat'],window['p3']['lat']],[window['p4']['long'],window['p3']['long']],'black', edge_width = 3.5)
     gmap.plot([window['p3']['lat'],window['p1']['lat']],[window['p3']['long'],window['p1']['long']],'black', edge_width = 3.5)
+
+
+def drawGrid(gmap,grid):
+    for window in grid:
+        gmap.plot([window['p1']['lat'],window['p2']['lat']],[window['p1']['long'],window['p2']['long']],'black', edge_width = 2.5)
+        gmap.plot([window['p2']['lat'],window['p4']['lat']],[window['p2']['long'],window['p4']['long']],'black', edge_width = 2.5)
+        gmap.plot([window['p4']['lat'],window['p3']['lat']],[window['p4']['long'],window['p3']['long']],'black', edge_width = 2.5)
+        gmap.plot([window['p3']['lat'],window['p1']['lat']],[window['p3']['long'],window['p1']['long']],'black', edge_width = 2.5)
+
 
 #calling main
 main()
