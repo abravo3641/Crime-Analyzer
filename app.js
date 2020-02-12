@@ -1,16 +1,17 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const mysql = require('mysql');
-const port = 8080;
-const fs = require('fs');
+const mysql = require('mysql'); 
 const app = express();
+
+require('dotenv').config(); // Lets us use the env file
+const port = process.env.PORT || 8080;
 
 
 let connection = mysql.createConnection({
-	host:'localhost',
-	user: 'root',
-	password: 'anthony1998',
-	database: 'seniorDesignDataManhattan'
+	host: process.env.host,
+	user: process.env.user,
+	password: process.env.password,
+	database: process.env.database
 });
 
 connection.connect((err)=> {
@@ -32,7 +33,7 @@ app.get('/crimeAnalyzer', (req,res) => {
     }
 
     //Response is an array of crime objects that are inside of the square
-    let limit = 'LIMIT 1000';
+    let limit = 'LIMIT 100';
     let q = `SELECT latitude,longitude FROM nyCrime WHERE latitude BETWEEN ${Math.min(square.y1,square.y2)} AND ${Math.max(square.y1,square.y2)} AND longitude BETWEEN ${Math.min(square.x1,square.x2)} AND ${Math.max(square.x1,square.x2)} ${limit}`;
     connection.query(q, (err,crimes) => {
 
@@ -76,8 +77,6 @@ function moveWindow(currentLocation, destinationLocation ,window){
         p3.lat = p4.lat = p3.lat - lSmall;
 
     }
-
-    
 
     return grid;
     
