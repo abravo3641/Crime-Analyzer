@@ -2,35 +2,25 @@ import sys, json, gmplot
 
 def main():
     #Getting arguments from Node
-    crimes, currentLocation, destinationLocation, window, grid = getArguments()
+    crimes, currentLocation, destinationLocation, bigSquare, grid = getArguments()
     
-    #List of lat and long for all crimes
-    latitude_list, longitude_list = getCrimeList(crimes)
+    # Create map and center it base on your location
+    gmap = gmplot.GoogleMapPlotter((currentLocation['lat']+destinationLocation['lat'])/2, (currentLocation['long']+destinationLocation['long'])/2, 15) 
 
-    # Create gmap and center it on Manhattan
-    gmap = gmplot.GoogleMapPlotter(40.760292, -73.996129, 13 ) 
+    # Display current location
+    drawPoint(gmap,currentLocation,'#00fff9',30)
 
-    # Currenlt and destination location coordinates
-    currentL = [currentLocation['lat'],currentLocation['long']]
-    destinationL = [destinationLocation['lat'],destinationLocation['long']]
+    # Display destination location
+    drawPoint(gmap,destinationLocation,'#00ff00',30)
 
-    #Display current location
-    gmap.scatter([currentL[0]],[currentL[1]], '#00fff9', size = 30, marker = False ) 
-
-    #Display destination location
-    gmap.scatter([destinationL[0]],[destinationL[1]], '#00ff00', size = 30, marker = False ) 
-
-    # display the crimes to the map
-    gmap.scatter( latitude_list, longitude_list, '#ff0000', size = 10, marker = False ) 
-
-    # display initial position of sliding window on the map
-    # drawSlidingWindow(gmap,window)
+    # Display the crimes to the map
+    drawCrimes(gmap,crimes,'#ff0000',10)
 
     # display grid of sliding window
-    drawGrid(gmap,grid)
+    drawGrid(gmap,grid,'black',2.5)
 
-    # Draw Big Box 
-    drawBigBox(gmap, currentL, destinationL)
+    # Draw Big Outer Box 
+    drawSquare(gmap,bigSquare,'cornflowerblue',2.5)
 
     # Write to the html path
     gmap.draw("./vizualization/file.html" ) 
@@ -40,40 +30,32 @@ def getArguments():
     crimes = json.loads(sys.argv[1])
     currentLocation = json.loads(sys.argv[2])
     destinationLocation = json.loads(sys.argv[3])
-    window = json.loads(sys.argv[4])
+    bigSquare = json.loads(sys.argv[4])
     grid = json.loads(sys.argv[5])
-    return crimes,currentLocation,destinationLocation,window,grid
+    return crimes,currentLocation,destinationLocation,bigSquare,grid    
 
-def getCrimeList(crimes):
+def drawCrimes(gmap,crimes,color,size):
+    #List of lat and long for all crimes
     latitude_list = []
     longitude_list = []
     for crime in crimes:
         latitude_list.append(crime['latitude'])
         longitude_list.append(crime['longitude'])
 
-    return latitude_list,longitude_list
+    gmap.scatter( latitude_list, longitude_list, color, size, marker = False ) 
 
-def drawBigBox(gmap,currentL,destinationL): 
-    gmap.plot([currentL[0],destinationL[0]],[currentL[1],currentL[1]],'cornflowerblue', edge_width = 2.5) 
-    gmap.plot([currentL[0],currentL[0]],[currentL[1],destinationL[1]],'cornflowerblue', edge_width = 2.5) 
-    gmap.plot([destinationL[0],destinationL[0]],[destinationL[1],currentL[1]],'cornflowerblue', edge_width = 2.5) 
-    gmap.plot([destinationL[0],currentL[0]],[destinationL[1],destinationL[1]],'cornflowerblue', edge_width = 2.5) 
+def drawPoint(gmap,point,color,size):
+    gmap.scatter([point['lat']],[point['long']], color, size, marker = False ) 
 
-def drawSlidingWindow(gmap,window):
-    #Display four points
-    gmap.plot([window['p1']['lat'],window['p2']['lat']],[window['p1']['long'],window['p2']['long']],'black', edge_width = 3.5)
-    gmap.plot([window['p2']['lat'],window['p4']['lat']],[window['p2']['long'],window['p4']['long']],'black', edge_width = 3.5)
-    gmap.plot([window['p4']['lat'],window['p3']['lat']],[window['p4']['long'],window['p3']['long']],'black', edge_width = 3.5)
-    gmap.plot([window['p3']['lat'],window['p1']['lat']],[window['p3']['long'],window['p1']['long']],'black', edge_width = 3.5)
+def drawSquare(gmap,square,color,width):
+    gmap.plot([square['p1']['lat'],square['p2']['lat']],[square['p1']['long'],square['p2']['long']],color, edge_width=width)
+    gmap.plot([square['p2']['lat'],square['p4']['lat']],[square['p2']['long'],square['p4']['long']],color, edge_width=width)
+    gmap.plot([square['p4']['lat'],square['p3']['lat']],[square['p4']['long'],square['p3']['long']],color, edge_width=width)
+    gmap.plot([square['p3']['lat'],square['p1']['lat']],[square['p3']['long'],square['p1']['long']],color, edge_width=width)
 
-
-def drawGrid(gmap,grid):
-    for window in grid:
-        gmap.plot([window['p1']['lat'],window['p2']['lat']],[window['p1']['long'],window['p2']['long']],'black', edge_width = 2.5)
-        gmap.plot([window['p2']['lat'],window['p4']['lat']],[window['p2']['long'],window['p4']['long']],'black', edge_width = 2.5)
-        gmap.plot([window['p4']['lat'],window['p3']['lat']],[window['p4']['long'],window['p3']['long']],'black', edge_width = 2.5)
-        gmap.plot([window['p3']['lat'],window['p1']['lat']],[window['p3']['long'],window['p1']['long']],'black', edge_width = 2.5)
-
+def drawGrid(gmap,grid,color,width):
+    for square in grid:
+        drawSquare(gmap,square,color,width)
 
 #calling main
 main()
