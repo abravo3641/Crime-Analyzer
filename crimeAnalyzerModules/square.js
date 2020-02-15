@@ -2,23 +2,23 @@ const Point = require('./point');
 
 class Square {
     /*
-        p1      p2
+        UL      UR
 
-        p3      p4
+        LL      LR
     */
 
-    // Takes 2 oppossite points (p1,p4) or (p2,p3) and makes square out of it
+    // Takes 2 oppossite points (upperLeft,lowerRight) or (upperRight,lowerLeft) and makes square out of it
     constructor(Pi,Pj) {
-        this.p1 = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
-        this.p2 = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)},
-        this.p3 = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
-        this.p4 = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)}
+        this.upperLeft = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
+        this.upperRight = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)},
+        this.lowerLeft = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
+        this.lowerRight = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)}
     }
 
     getDimensions() {
         return {
-            length: this.p1.lat - this.p3.lat,
-            width: Math.abs(this.p1.long) - Math.abs(this.p2.long)
+            length: this.upperLeft.lat - this.lowerLeft.lat,
+            width: Math.abs(this.upperLeft.long) - Math.abs(this.upperRight.long)
         }
     }
 }

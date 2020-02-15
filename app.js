@@ -33,7 +33,7 @@ app.get('/crimeAnalyzer', (req,res) => {
 
     //Response is an array of crime objects that are inside of the square
     let limit = 'LIMIT 1000';
-    let q = `SELECT latitude,longitude FROM nyCrime WHERE latitude BETWEEN ${bigSquare.p3.lat} AND ${bigSquare.p1.lat} AND longitude BETWEEN ${bigSquare.p1.long} AND ${bigSquare.p2.long} ${limit}`;
+    let q = `SELECT latitude,longitude FROM nyCrime WHERE latitude BETWEEN ${bigSquare.lowerLeft.lat} AND ${bigSquare.upperLeft.lat} AND longitude BETWEEN ${bigSquare.upperLeft.long} AND ${bigSquare.upperRight.long} ${limit}`;
     connection.query(q, (err,crimes) => {
         
         // Create and move sliding window
@@ -52,7 +52,7 @@ function moveSlidingWindow(bigSquare){
 
     // Initialize position of sliding window
     let slidingWindow = constructSlidingWindow(bigSquare);
-    let {p1,p2,p3,p4} = slidingWindow;
+    let {upperLeft,upperRight,lowerLeft,lowerRight} = slidingWindow;
 
     //Dimensions of smaller square
     const {length,width} = slidingWindow.getDimensions();
@@ -60,20 +60,32 @@ function moveSlidingWindow(bigSquare){
     /*Added toFixed(8) for rounding errors  */
 
     //Still inside of the big square
-    while(p1.lat.toFixed(8) > bigSquare.p3.lat.toFixed(8)) {
-        while(Math.abs(p1.long.toFixed(8)) > Math.abs(bigSquare.p2.long.toFixed(8))) {
+    while(upperLeft.lat.toFixed(8) > bigSquare.lowerLeft.lat.toFixed(8)) {
+        while(Math.abs(upperLeft.long.toFixed(8)) > Math.abs(bigSquare.upperRight.long.toFixed(8))) {
+
+            //Check if window is overFlowed on long
+            if(Math.abs(upperRight.long.toFixed(8)) < Math.abs(bigSquare.upperRight.long.toFixed(8))) {
+                upperRight.long = lowerRight.long = bigSquare.upperRight.long;
+            }
+
             //Copy the points and put then on the grid to save
-            grid.push({p1: {...p1},p2: {...p2},p3: {...p3},p4: {...p4}});
-            p1.long += width;
-            p2.long += width;
-            p3.long += width;
-            p4.long += width;
+            grid.push({upperLeft: {...upperLeft},upperRight: {...upperRight},lowerLeft: {...lowerLeft},lowerRight: {...lowerRight}});
+            upperLeft.long += width;
+            upperRight.long += width;
+            lowerLeft.long += width;
+            lowerRight.long += width;
+
         }
         //Reset square back to the left and update latitude
-        p1.long = p3.long = bigSquare.p1.long;
-        p2.long = p4.long = p1.long + width;
-        p1.lat  = p2.lat  = p1.lat - length;
-        p3.lat  = p4.lat  = p3.lat - length;
+        upperLeft.long = lowerLeft.long = bigSquare.upperLeft.long;
+        upperRight.long = lowerRight.long = upperLeft.long + width;
+        upperLeft.lat  = upperRight.lat  = upperLeft.lat - length;
+        lowerLeft.lat  = lowerRight.lat  = lowerLeft.lat - length;
+
+        //Check if window is overFlowed on lat
+        if(lowerLeft.lat < bigSquare.lowerLeft.lat) {
+            lowerLeft.lat = lowerRight.lat = bigSquare.lowerLeft.lat;
+        }
 
     }
     return grid;
@@ -84,7 +96,7 @@ function constructSlidingWindow(bigSquare) {
     const k = 0.1; //hard coded k value
 
     //Dimensions of big square
-    const {p1} = bigSquare;
+    const {upperLeft} = bigSquare;
     const {length,width} = bigSquare.getDimensions();
 
     //Dimensions of small square
@@ -92,7 +104,7 @@ function constructSlidingWindow(bigSquare) {
     const wSmall = k * width;
 
     //return square at the top left corner
-    return new Square(bigSquare.p1,{'lat': p1.lat-lSmall, 'long': p1.long+wSmall});
+    return new Square(bigSquare.upperLeft,{'lat': upperLeft.lat-lSmall, 'long': upperLeft.long+wSmall});
 }
 
 function printToMap(...arg) {
