@@ -21,6 +21,15 @@ class Square {
             width: Math.abs(this.upperLeft.long) - Math.abs(this.upperRight.long)
         }
     }
+
+    clone() {
+        return {
+            upperLeft: {...this.upperLeft},
+            upperRight: {...this.upperRight},
+            lowerLeft: {...this.lowerLeft},
+            lowerRight: {...this.lowerRight}
+        }
+    }
 }
 
 module.exports = Square;

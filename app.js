@@ -18,8 +18,8 @@ let connection = mysql.createConnection({
 
 connection.connect((err)=> {
 	if (err) throw err;
-});
-
+}); 
+ 
 //Middlewares
 app.use(bodyParser.json());
 
@@ -33,22 +33,35 @@ app.get('/crimeAnalyzer', (req,res) => {
 
     //Response is an array of crime objects that are inside of the square
     let limit = 'LIMIT 1000';
-    let q = `SELECT latitude,longitude FROM nyCrime WHERE latitude BETWEEN ${bigSquare.lowerLeft.lat} AND ${bigSquare.upperLeft.lat} AND longitude BETWEEN ${bigSquare.upperLeft.long} AND ${bigSquare.upperRight.long} ${limit}`;
+    let order = '';
+    let q = `SELECT latitude,longitude FROM nyCrime WHERE latitude BETWEEN ${bigSquare.lowerLeft.lat} AND ${bigSquare.upperLeft.lat} AND longitude BETWEEN ${bigSquare.upperLeft.long} AND ${bigSquare.upperRight.long} ${order} ${limit}`;
     connection.query(q, (err,crimes) => {
-        
+
+        if(err) throw new Error;
+
         // Create and move sliding window
-        let grid = moveSlidingWindow(bigSquare);
+        let values = moveSlidingWindow(bigSquare,crimes);
+        let grid = values[0];
+        let activatedWindows = values[1];
+
+        // Number of windows that passed threshold
+        console.log(`Number of windows that passed a thr of ${getThreshold(crimes)}% : ${activatedWindows.length}`)
 
         // Call python Script to display map
-        printToMap(crimes,currentPoint,destinationPoint,bigSquare,grid);
-        
-        res.send('done!');
+        printToMap({},currentPoint,destinationPoint,bigSquare,grid,activatedWindows);
+
+        //Send array of windows that passed thr as response
+        res.json(activatedWindows);
     });
 })
 
 // Returns an array of ALL the squares the sliding slidingWindow slides through
-function moveSlidingWindow(bigSquare){
+function moveSlidingWindow(bigSquare,crimes){
     let grid = [];
+    let activatedWindows = [];
+
+    // Calculate the threshold
+    const thr = getThreshold(crimes);
 
     // Initialize position of sliding window
     let slidingWindow = constructSlidingWindow(bigSquare);
@@ -68,15 +81,31 @@ function moveSlidingWindow(bigSquare){
                 upperRight.long = lowerRight.long = bigSquare.upperRight.long;
             }
 
+            //Calculate number of crimes inside the sliding window
+            let numOfCrimes = 0;
+            crimes.forEach(crime => {
+                //Crime is inside the sliding window
+                if( (crime.latitude > lowerLeft.lat && crime.latitude < upperLeft.lat) && (Math.abs(crime.longitude) < Math.abs(upperLeft.long) && Math.abs(crime.longitude) > Math.abs(upperRight.long)) ) {
+                    numOfCrimes++;
+                }
+            })
+
+            let slidingWindowClone = slidingWindow.clone();
+
+            //Check if window passes threshold
+            if(numOfCrimes >= thr) activatedWindows.push(slidingWindowClone)
+
             //Copy the points and put then on the grid to save
-            grid.push({upperLeft: {...upperLeft},upperRight: {...upperRight},lowerLeft: {...lowerLeft},lowerRight: {...lowerRight}});
+            grid.push(slidingWindowClone);
+
+            //Move sliding window to the right
             upperLeft.long += width;
             upperRight.long += width;
             lowerLeft.long += width;
             lowerRight.long += width;
 
         }
-        //Reset square back to the left and update latitude
+        //Reset square back to the left and update latitude(move sliding window down)
         upperLeft.long = lowerLeft.long = bigSquare.upperLeft.long;
         upperRight.long = lowerRight.long = upperLeft.long + width;
         upperLeft.lat  = upperRight.lat  = upperLeft.lat - length;
@@ -88,7 +117,14 @@ function moveSlidingWindow(bigSquare){
         }
 
     }
-    return grid;
+    return [grid,activatedWindows];
+}
+
+
+// Minimum number of crimes to activate sliding window 
+function getThreshold(crimes) {
+    const thr = 2; 
+    return (thr/100*crimes.length);
 }
 
 // This returns the initial posisiton of the sliding window
