@@ -2,7 +2,7 @@ import sys, json, gmplot
 
 def main():
     #Getting arguments from Node
-    crimes, currentLocation, destinationLocation, bigSquare, grid = getArguments()
+    crimes, currentLocation, destinationLocation, bigSquare, grid, activatedWindows = getArguments()
     
     # Create map and center it base on your location
     gmap = gmplot.GoogleMapPlotter((currentLocation['lat']+destinationLocation['lat'])/2, (currentLocation['long']+destinationLocation['long'])/2, 15) 
@@ -19,8 +19,11 @@ def main():
     # display grid of sliding window
     drawGrid(gmap,grid,'black',2.5)
 
+    # Draw the activated windows that passed thr
+    drawActivatedWindows(gmap,activatedWindows,'#E3850D')
+
     # Draw Big Outer Box 
-    drawSquare(gmap,bigSquare,'cornflowerblue',2.5)
+    drawSquareOutline(gmap,bigSquare,'cornflowerblue',2.5)
 
     # Write to the html path
     gmap.draw("./vizualization/file.html" ) 
@@ -32,7 +35,8 @@ def getArguments():
     destinationLocation = json.loads(sys.argv[3])
     bigSquare = json.loads(sys.argv[4])
     grid = json.loads(sys.argv[5])
-    return crimes,currentLocation,destinationLocation,bigSquare,grid    
+    activatedWindows = json.loads(sys.argv[6])
+    return crimes,currentLocation,destinationLocation,bigSquare,grid,activatedWindows
 
 def drawCrimes(gmap,crimes,color,size):
     #List of lat and long for all crimes
@@ -47,15 +51,23 @@ def drawCrimes(gmap,crimes,color,size):
 def drawPoint(gmap,point,color,size):
     gmap.scatter([point['lat']],[point['long']], color, size, marker = False ) 
 
-def drawSquare(gmap,square,color,width):
-    gmap.plot([square['p1']['lat'],square['p2']['lat']],[square['p1']['long'],square['p2']['long']],color, edge_width=width)
-    gmap.plot([square['p2']['lat'],square['p4']['lat']],[square['p2']['long'],square['p4']['long']],color, edge_width=width)
-    gmap.plot([square['p4']['lat'],square['p3']['lat']],[square['p4']['long'],square['p3']['long']],color, edge_width=width)
-    gmap.plot([square['p3']['lat'],square['p1']['lat']],[square['p3']['long'],square['p1']['long']],color, edge_width=width)
+def drawSquareOutline(gmap,square,color,width):
+    gmap.plot([square['upperLeft']['lat'],square['upperRight']['lat']],[square['upperLeft']['long'],square['upperRight']['long']],color, edge_width=width)
+    gmap.plot([square['upperRight']['lat'],square['lowerRight']['lat']],[square['upperRight']['long'],square['lowerRight']['long']],color, edge_width=width)
+    gmap.plot([square['lowerRight']['lat'],square['lowerLeft']['lat']],[square['lowerRight']['long'],square['lowerLeft']['long']],color, edge_width=width)
+    gmap.plot([square['lowerLeft']['lat'],square['upperLeft']['lat']],[square['lowerLeft']['long'],square['upperLeft']['long']],color, edge_width=width)
+
+def drawSquareFill(gmap,square,color):
+    #[p1,p2,p3,p4,p1,p3,p2,p4]
+    gmap.polygon([square['upperLeft']['lat'],square['upperRight']['lat'],square['lowerLeft']['lat'],square['lowerRight']['lat'],square['upperLeft']['lat'],square['lowerLeft']['lat'],square['upperRight']['lat'],square['lowerRight']['lat']],[square['upperLeft']['long'],square['upperRight']['long'],square['lowerLeft']['long'],square['lowerRight']['long'],square['upperLeft']['long'],square['lowerLeft']['long'],square['upperRight']['long'],square['lowerRight']['long']],color)
 
 def drawGrid(gmap,grid,color,width):
     for square in grid:
-        drawSquare(gmap,square,color,width)
+        drawSquareOutline(gmap,square,color,width)
+
+def drawActivatedWindows(gmap,activatedWindows,color):
+    for square in activatedWindows:
+        drawSquareFill(gmap,square,color)
 
 #calling main
 main()
