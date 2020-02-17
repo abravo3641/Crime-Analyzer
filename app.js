@@ -40,9 +40,7 @@ app.get('/crimeAnalyzer', (req,res) => {
         if(err) throw new Error;
 
         // Create and move sliding window
-        let values = moveSlidingWindow(bigSquare,crimes);
-        let grid = values[0];
-        let activatedWindows = values[1];
+        const {grid,activatedWindows} = moveSlidingWindow(bigSquare,crimes);
 
         // Number of windows that passed threshold
         console.log(`Number of windows that passed a thr of ${getThreshold(crimes)}% : ${activatedWindows.length}`)
@@ -117,7 +115,7 @@ function moveSlidingWindow(bigSquare,crimes){
         }
 
     }
-    return [grid,activatedWindows];
+    return {grid,activatedWindows};
 }
 
 
