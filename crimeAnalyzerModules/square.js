@@ -2,32 +2,32 @@ const Point = require('./point');
 
 class Square {
     /*
-        UL      UR
+        TL      TR
 
-        LL      LR
+        BL      BR
     */
 
-    // Takes 2 oppossite points (upperLeft,lowerRight) or (upperRight,lowerLeft) and makes square out of it
+    // Takes 2 oppossite points (topLeft,bottomRight) or (topRight,bottomLeft) and makes square out of it
     constructor(Pi,Pj) {
-        this.upperLeft = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
-        this.upperRight = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)},
-        this.lowerLeft = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
-        this.lowerRight = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)}
+        this.topLeft = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
+        this.topRight = {'lat': Math.max(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)},
+        this.bottomLeft = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.min(Pi.long,Pj.long)},
+        this.bottomRight = {'lat': Math.min(Pi.lat, Pj.lat), 'long': Math.max(Pi.long,Pj.long)}
     }
 
     getDimensions() {
         return {
-            length: this.upperLeft.lat - this.lowerLeft.lat,
-            width: Math.abs(this.upperLeft.long) - Math.abs(this.upperRight.long)
+            length: this.topLeft.lat - this.bottomLeft.lat,
+            width: Math.abs(this.topLeft.long) - Math.abs(this.topRight.long)
         }
     }
 
     clone() {
         return {
-            upperLeft: {...this.upperLeft},
-            upperRight: {...this.upperRight},
-            lowerLeft: {...this.lowerLeft},
-            lowerRight: {...this.lowerRight}
+            topLeft: {...this.topLeft},
+            topRight: {...this.topRight},
+            bottomLeft: {...this.bottomLeft},
+            bottomRight: {...this.bottomRight}
         }
     }
 }

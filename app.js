@@ -24,17 +24,20 @@ connection.connect((err)=> {
 app.use(bodyParser.json());
 
 app.get('/crimeAnalyzer', (req,res) => {
-    //Req should contain a current point and destination point
+    //Req should contain a current point, destination point, and dayOfWeek that user is using application
 
-    let {currentPoint,destinationPoint} = req.body;  
+    let {currentPoint,destinationPoint,dayOfWeek} = req.body;
+    
+    //Validate that the current and destination point are far apart to form a square around
+    let {updatedCurrentPoint,updatedDestinationPoint} = validatePoints(currentPoint,destinationPoint);
 
     // Getting coordinates of the bigSquare
-    let bigSquare = new Square(currentPoint,destinationPoint);
+    let bigSquare = new Square(updatedCurrentPoint,updatedDestinationPoint);
 
     //Response is an array of crime objects that are inside of the square
-    let limit = 'LIMIT 1000';
+    let limit = '';
     let order = '';
-    let q = `SELECT latitude,longitude FROM nyCrime WHERE latitude BETWEEN ${bigSquare.lowerLeft.lat} AND ${bigSquare.upperLeft.lat} AND longitude BETWEEN ${bigSquare.upperLeft.long} AND ${bigSquare.upperRight.long} ${order} ${limit}`;
+    let q = `SELECT latitude,longitude FROM nyCrime${dayOfWeek} WHERE latitude BETWEEN ${bigSquare.bottomLeft.lat} AND ${bigSquare.topLeft.lat} AND longitude BETWEEN ${bigSquare.topLeft.long} AND ${bigSquare.topRight.long} ${order} ${limit}`;
     connection.query(q, (err,crimes) => {
 
         if(err) throw new Error;
@@ -43,7 +46,7 @@ app.get('/crimeAnalyzer', (req,res) => {
         const {grid,activatedWindows} = moveSlidingWindow(bigSquare,crimes);
 
         // Number of windows that passed threshold
-        console.log(`Number of windows that passed a thr of ${getThreshold(crimes)}% : ${activatedWindows.length}`)
+        console.log(`Number of windows that passed a thr of ${getThreshold(crimes)} crimes : ${activatedWindows.length}`)
 
         // Call python Script to display map
         printToMap({},currentPoint,destinationPoint,bigSquare,grid,activatedWindows);
@@ -52,6 +55,32 @@ app.get('/crimeAnalyzer', (req,res) => {
         res.json(activatedWindows);
     });
 })
+
+function validatePoints(currentPoint,destinationPoint) {
+
+    //Mininum difference that two lat/long lines must apart before they are seperated
+    const thr = 0.0036869999999993297; 
+
+    const latDiff = Math.abs(currentPoint.lat - destinationPoint.lat);
+    const longDiff = Math.abs(Math.abs(currentPoint.long) - Math.abs(destinationPoint.long));
+    
+    // Check if latitude lines are too close together
+
+    //Check to seperate latitude
+    if(latDiff < thr) {
+        console.log(`Latitude lines are too closed together: ${latDiff}`);
+    }
+
+    //Check to seperate longitude
+    if(longDiff < thr) {
+        console.log(`Longitude lines are too closed together: ${longDiff}`);
+    }    
+
+    return {
+        updatedCurrentPoint: currentPoint,
+        updatedDestinationPoint: destinationPoint
+    };
+}
 
 // Returns an array of ALL the squares the sliding slidingWindow slides through
 function moveSlidingWindow(bigSquare,crimes){
@@ -63,7 +92,7 @@ function moveSlidingWindow(bigSquare,crimes){
 
     // Initialize position of sliding window
     let slidingWindow = constructSlidingWindow(bigSquare);
-    let {upperLeft,upperRight,lowerLeft,lowerRight} = slidingWindow;
+    let {topLeft,topRight,bottomLeft,bottomRight} = slidingWindow;
 
     //Dimensions of smaller square
     const {length,width} = slidingWindow.getDimensions();
@@ -71,19 +100,19 @@ function moveSlidingWindow(bigSquare,crimes){
     /*Added toFixed(8) for rounding errors  */
 
     //Still inside of the big square
-    while(upperLeft.lat.toFixed(8) > bigSquare.lowerLeft.lat.toFixed(8)) {
-        while(Math.abs(upperLeft.long.toFixed(8)) > Math.abs(bigSquare.upperRight.long.toFixed(8))) {
+    while(topLeft.lat.toFixed(8) > bigSquare.bottomLeft.lat.toFixed(8)) {
+        while(Math.abs(topLeft.long.toFixed(8)) > Math.abs(bigSquare.topRight.long.toFixed(8))) {
 
             //Check if window is overFlowed on long
-            if(Math.abs(upperRight.long.toFixed(8)) < Math.abs(bigSquare.upperRight.long.toFixed(8))) {
-                upperRight.long = lowerRight.long = bigSquare.upperRight.long;
+            if(Math.abs(topRight.long.toFixed(8)) < Math.abs(bigSquare.topRight.long.toFixed(8))) {
+                topRight.long = bottomRight.long = bigSquare.topRight.long;
             }
 
             //Calculate number of crimes inside the sliding window
             let numOfCrimes = 0;
             crimes.forEach(crime => {
                 //Crime is inside the sliding window
-                if( (crime.latitude > lowerLeft.lat && crime.latitude < upperLeft.lat) && (Math.abs(crime.longitude) < Math.abs(upperLeft.long) && Math.abs(crime.longitude) > Math.abs(upperRight.long)) ) {
+                if( (crime.latitude > bottomLeft.lat && crime.latitude < topLeft.lat) && (Math.abs(crime.longitude) < Math.abs(topLeft.long) && Math.abs(crime.longitude) > Math.abs(topRight.long)) ) {
                     numOfCrimes++;
                 }
             })
@@ -97,21 +126,21 @@ function moveSlidingWindow(bigSquare,crimes){
             grid.push(slidingWindowClone);
 
             //Move sliding window to the right
-            upperLeft.long += width;
-            upperRight.long += width;
-            lowerLeft.long += width;
-            lowerRight.long += width;
+            topLeft.long += width;
+            topRight.long += width;
+            bottomLeft.long += width;
+            bottomRight.long += width;
 
         }
         //Reset square back to the left and update latitude(move sliding window down)
-        upperLeft.long = lowerLeft.long = bigSquare.upperLeft.long;
-        upperRight.long = lowerRight.long = upperLeft.long + width;
-        upperLeft.lat  = upperRight.lat  = upperLeft.lat - length;
-        lowerLeft.lat  = lowerRight.lat  = lowerLeft.lat - length;
+        topLeft.long = bottomLeft.long = bigSquare.topLeft.long;
+        topRight.long = bottomRight.long = topLeft.long + width;
+        topLeft.lat  = topRight.lat  = topLeft.lat - length;
+        bottomLeft.lat  = bottomRight.lat  = bottomLeft.lat - length;
 
         //Check if window is overFlowed on lat
-        if(lowerLeft.lat < bigSquare.lowerLeft.lat) {
-            lowerLeft.lat = lowerRight.lat = bigSquare.lowerLeft.lat;
+        if(bottomLeft.lat < bigSquare.bottomLeft.lat) {
+            bottomLeft.lat = bottomRight.lat = bigSquare.bottomLeft.lat;
         }
 
     }
@@ -130,7 +159,7 @@ function constructSlidingWindow(bigSquare) {
     const k = 0.1; //hard coded k value
 
     //Dimensions of big square
-    const {upperLeft} = bigSquare;
+    const {topLeft} = bigSquare;
     const {length,width} = bigSquare.getDimensions();
 
     //Dimensions of small square
@@ -138,7 +167,7 @@ function constructSlidingWindow(bigSquare) {
     const wSmall = k * width;
 
     //return square at the top left corner
-    return new Square(bigSquare.upperLeft,{'lat': upperLeft.lat-lSmall, 'long': upperLeft.long+wSmall});
+    return new Square(bigSquare.topLeft,{'lat': topLeft.lat-lSmall, 'long': topLeft.long+wSmall});
 }
 
 function printToMap(...arg) {

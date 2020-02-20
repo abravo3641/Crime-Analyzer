@@ -52,14 +52,14 @@ def drawPoint(gmap,point,color,size):
     gmap.scatter([point['lat']],[point['long']], color, size, marker = False ) 
 
 def drawSquareOutline(gmap,square,color,width):
-    gmap.plot([square['upperLeft']['lat'],square['upperRight']['lat']],[square['upperLeft']['long'],square['upperRight']['long']],color, edge_width=width)
-    gmap.plot([square['upperRight']['lat'],square['lowerRight']['lat']],[square['upperRight']['long'],square['lowerRight']['long']],color, edge_width=width)
-    gmap.plot([square['lowerRight']['lat'],square['lowerLeft']['lat']],[square['lowerRight']['long'],square['lowerLeft']['long']],color, edge_width=width)
-    gmap.plot([square['lowerLeft']['lat'],square['upperLeft']['lat']],[square['lowerLeft']['long'],square['upperLeft']['long']],color, edge_width=width)
+    gmap.plot([square['topLeft']['lat'],square['topRight']['lat']],[square['topLeft']['long'],square['topRight']['long']],color, edge_width=width)
+    gmap.plot([square['topRight']['lat'],square['bottomRight']['lat']],[square['topRight']['long'],square['bottomRight']['long']],color, edge_width=width)
+    gmap.plot([square['bottomRight']['lat'],square['bottomLeft']['lat']],[square['bottomRight']['long'],square['bottomLeft']['long']],color, edge_width=width)
+    gmap.plot([square['bottomLeft']['lat'],square['topLeft']['lat']],[square['bottomLeft']['long'],square['topLeft']['long']],color, edge_width=width)
 
 def drawSquareFill(gmap,square,color):
     #[p1,p2,p3,p4,p1,p3,p2,p4]
-    gmap.polygon([square['upperLeft']['lat'],square['upperRight']['lat'],square['lowerLeft']['lat'],square['lowerRight']['lat'],square['upperLeft']['lat'],square['lowerLeft']['lat'],square['upperRight']['lat'],square['lowerRight']['lat']],[square['upperLeft']['long'],square['upperRight']['long'],square['lowerLeft']['long'],square['lowerRight']['long'],square['upperLeft']['long'],square['lowerLeft']['long'],square['upperRight']['long'],square['lowerRight']['long']],color)
+    gmap.polygon([square['topLeft']['lat'],square['topRight']['lat'],square['bottomLeft']['lat'],square['bottomRight']['lat'],square['topLeft']['lat'],square['bottomLeft']['lat'],square['topRight']['lat'],square['bottomRight']['lat']],[square['topLeft']['long'],square['topRight']['long'],square['bottomLeft']['long'],square['bottomRight']['long'],square['topLeft']['long'],square['bottomLeft']['long'],square['topRight']['long'],square['bottomRight']['long']],color)
 
 def drawGrid(gmap,grid,color,width):
     for square in grid:
