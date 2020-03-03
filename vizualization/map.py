@@ -5,28 +5,28 @@ def main():
     crimes, currentLocation, destinationLocation, bigSquare, grid, activatedWindows = getArguments()
     
     # Create map and center it base on your location
-    gmap = gmplot.GoogleMapPlotter((currentLocation['lat']+destinationLocation['lat'])/2, (currentLocation['long']+destinationLocation['long'])/2, 15) 
+    gmap = gmplot.GoogleMapPlotter((currentLocation['lat']+destinationLocation['lat'])/2, (currentLocation['long']+destinationLocation['long'])/2, 12) 
 
     # Display current location
-    drawPoint(gmap,currentLocation,'#00fff9',30)
+    #drawPoint(gmap,currentLocation,'#00fff9',30)
 
     # Display destination location
-    drawPoint(gmap,destinationLocation,'#00ff00',30)
+    #drawPoint(gmap,destinationLocation,'#00ff00',30)
 
     # Display the crimes to the map
-    drawCrimes(gmap,crimes,'#ff0000',10)
+    #drawCrimes(gmap,crimes,'#ff0000',10)
 
     # display grid of sliding window
     drawGrid(gmap,grid,'black',2.5)
 
     # Draw the activated windows that passed thr
-    drawActivatedWindows(gmap,activatedWindows,'#E3850D')
+    #drawActivatedWindows(gmap,activatedWindows,'#E3850D')
 
     # Draw Big Outer Box 
-    drawSquareOutline(gmap,bigSquare,'cornflowerblue',2.5)
+    #drawSquareOutline(gmap,bigSquare,'cornflowerblue',2.5)
 
     # Write to the html path
-    gmap.draw("./vizualization/file.html" ) 
+    gmap.draw("./vizualization/file_init.html" ) 
 
 
 def getArguments():
