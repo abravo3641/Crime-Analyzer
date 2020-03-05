@@ -25,150 +25,71 @@ app.use(bodyParser.json());
 
 app.get('/crimeAnalyzer', (req,res) => {
     //Req should contain a current point, destination point, and dayOfWeek that user is using application
-
     let {currentPoint,destinationPoint,dayOfWeek} = req.body;
-    
-    //Validate that the current and destination point are far apart to form a square around
-    let {updatedCurrentPoint,updatedDestinationPoint} = validatePoints(currentPoint,destinationPoint);
 
     // Getting coordinates of the bigSquare
-    let bigSquare = new Square(updatedCurrentPoint,updatedDestinationPoint);
+    let bigSquare = new Square(currentPoint,destinationPoint);
 
-    //Response is an array of crime objects that are inside of the square
-    let limit = '';
-    let order = '';
-    let q = `SELECT latitude,longitude FROM nyCrime${dayOfWeek} WHERE latitude BETWEEN ${bigSquare.bottomLeft.lat} AND ${bigSquare.topLeft.lat} AND longitude BETWEEN ${bigSquare.topLeft.long} AND ${bigSquare.topRight.long} ${order} ${limit}`;
-    connection.query(q, (err,crimes) => {
+    // Updated bigSquare with biased points
+    let bigSquareBias = new Square(
+        {
+            'lat':  bigSquare.bottomLeft.lat-getSize(), 
+            'long': bigSquare.topLeft.long-getSize()
+        },
+        {
+            'lat':  bigSquare.topRight.lat+getSize(), 
+            'long': bigSquare.topRight.long+getSize()
+        }
+    );
 
-        if(err) throw new Error;
+    //Get Squares that are inside big Biased Square
+    let grid = [];
+    const restrictionLat = `BETWEEN ${bigSquareBias.bottomLeft.lat} AND ${bigSquareBias.topLeft.lat}`;
+    const restrictionLong = `BETWEEN ${bigSquareBias.topLeft.long} AND ${bigSquareBias.topRight.long}`
+    let q = `SELECT * FROM Grid WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
+    connection.query(q, (err,squares) => {
+        
+        let totalNumOfCrimes = 0;
+        squares.forEach(sqr => {
+            let Pi = {'lat': sqr.upper_left_lat , 'long': sqr.upper_left_long};
+            let Pj = {'lat': sqr.lower_right_lat, 'long': sqr.lower_right_long};
+            let sqrObj = new Square(Pi,Pj);
+            sqrObj.numOfCrimes = sqr.number_of_crimes;
+            totalNumOfCrimes += sqr.number_of_crimes;
+            grid.push(sqrObj);
+        });
 
-        // Create and move sliding window
-        const {grid,activatedWindows} = moveSlidingWindow(bigSquare,crimes);
-
-        // Number of windows that passed threshold
-        console.log(`Number of windows that passed a thr of ${getThreshold(crimes)} crimes : ${activatedWindows.length}`)
+        // Get number of windows that passed threshold
+        const activatedWindows = getActivatedWindows(grid,totalNumOfCrimes);
+        console.log(`Number of windows that passed a thr of ${getThreshold(grid,totalNumOfCrimes)} crimes : ${activatedWindows.length}`)
 
         // Call python Script to display map
-        printToMap({},currentPoint,destinationPoint,bigSquare,grid,activatedWindows);
+        printToMap(currentPoint,destinationPoint,bigSquare,grid,activatedWindows);
 
-        //Send array of windows that passed thr as response
         res.json(activatedWindows);
-    });
+    })
 })
 
-function validatePoints(currentPoint,destinationPoint) {
-
-    //Mininum difference that two lat/long lines must apart before they are seperated
-    const thr = 0.0036869999999993297; 
-
-    const latDiff = Math.abs(currentPoint.lat - destinationPoint.lat);
-    const longDiff = Math.abs(Math.abs(currentPoint.long) - Math.abs(destinationPoint.long));
-    
-    // Check if latitude lines are too close together
-
-    //Check to seperate latitude
-    if(latDiff < thr) {
-        console.log(`Latitude lines are too closed together: ${latDiff}`);
-    }
-
-    //Check to seperate longitude
-    if(longDiff < thr) {
-        console.log(`Longitude lines are too closed together: ${longDiff}`);
-    }    
-
-    return {
-        updatedCurrentPoint: currentPoint,
-        updatedDestinationPoint: destinationPoint
-    };
-}
-
-// Returns an array of ALL the squares the sliding slidingWindow slides through
-function moveSlidingWindow(bigSquare,crimes){
-    let grid = [];
-    let activatedWindows = [];
-
-    // Calculate the threshold
-    const thr = getThreshold(crimes);
-
-    // Initialize position of sliding window
-    let slidingWindow = constructSlidingWindow(bigSquare);
-    let {topLeft,topRight,bottomLeft,bottomRight} = slidingWindow;
-
-    //Dimensions of smaller square
-    const {length,width} = slidingWindow.getDimensions();
-
-    /*Added toFixed(8) for rounding errors  */
-
-    //Still inside of the big square
-    while(topLeft.lat.toFixed(8) > bigSquare.bottomLeft.lat.toFixed(8)) {
-        while(Math.abs(topLeft.long.toFixed(8)) > Math.abs(bigSquare.topRight.long.toFixed(8))) {
-
-            //Check if window is overFlowed on long
-            if(Math.abs(topRight.long.toFixed(8)) < Math.abs(bigSquare.topRight.long.toFixed(8))) {
-                topRight.long = bottomRight.long = bigSquare.topRight.long;
-            }
-
-            //Calculate number of crimes inside the sliding window
-            let numOfCrimes = 0;
-            crimes.forEach(crime => {
-                //Crime is inside the sliding window
-                if( (crime.latitude > bottomLeft.lat && crime.latitude < topLeft.lat) && (Math.abs(crime.longitude) < Math.abs(topLeft.long) && Math.abs(crime.longitude) > Math.abs(topRight.long)) ) {
-                    numOfCrimes++;
-                }
-            })
-
-            let slidingWindowClone = slidingWindow.clone();
-
-            //Check if window passes threshold
-            if(numOfCrimes >= thr) activatedWindows.push(slidingWindowClone)
-
-            //Copy the points and put then on the grid to save
-            grid.push(slidingWindowClone);
-
-            //Move sliding window to the right
-            topLeft.long += width;
-            topRight.long += width;
-            bottomLeft.long += width;
-            bottomRight.long += width;
-
-        }
-        //Reset square back to the left and update latitude(move sliding window down)
-        topLeft.long = bottomLeft.long = bigSquare.topLeft.long;
-        topRight.long = bottomRight.long = topLeft.long + width;
-        topLeft.lat  = topRight.lat  = topLeft.lat - length;
-        bottomLeft.lat  = bottomRight.lat  = bottomLeft.lat - length;
-
-        //Check if window is overFlowed on lat
-        if(bottomLeft.lat < bigSquare.bottomLeft.lat) {
-            bottomLeft.lat = bottomRight.lat = bigSquare.bottomLeft.lat;
-        }
-
-    }
-    return {grid,activatedWindows};
-}
-
-
 // Minimum number of crimes to activate sliding window 
-function getThreshold(crimes) {
-    const thr = 2; 
-    return (thr/100*crimes.length);
+function getThreshold(grid,totalNumOfCrimes) {
+    const thr = 2.5; // in percent
+    return Math.floor(thr/100*totalNumOfCrimes);
 }
 
-// This returns the initial posisiton of the sliding window
-function constructSlidingWindow(bigSquare) {
-    const k = 0.1; //hard coded k value
-
-    //Dimensions of big square
-    const {topLeft} = bigSquare;
-    const {length,width} = bigSquare.getDimensions();
-
-    //Dimensions of small square
-    const lSmall = k * length;
-    const wSmall = k * width;
-
-    //return square at the top left corner
-    return new Square(bigSquare.topLeft,{'lat': topLeft.lat-lSmall, 'long': topLeft.long+wSmall});
+// Get the windows that pass the threshold value
+function getActivatedWindows(grid,totalNumOfCrimes) {
+    //Least number of crimes to pass thr
+    const thr = getThreshold(grid,totalNumOfCrimes); 
+    const activatedWindows = grid.filter(sqr => sqr.numOfCrimes >= thr);
+    return activatedWindows;
 }
+
+//The size of each grid square
+function getSize() {
+    const size = 0.0018;
+    return size;
+}
+
 
 function printToMap(...arg) {
     const {spawn} = require("child_process");
@@ -179,4 +100,5 @@ function printToMap(...arg) {
 
 app.listen(port, () => {
     console.log(`Listening on port ${port}`);
+    //init();
 })
