@@ -46,7 +46,7 @@ app.get('/crimeAnalyzer', (req,res) => {
     let grid = [];
     const restrictionLat = `BETWEEN ${bigSquareBias.bottomLeft.lat} AND ${bigSquareBias.topLeft.lat}`;
     const restrictionLong = `BETWEEN ${bigSquareBias.topLeft.long} AND ${bigSquareBias.topRight.long}`
-    let q = `SELECT * FROM Grid WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
+    let q = `SELECT * FROM grid_${dayOfWeek.toLocaleLowerCase()} WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
     connection.query(q, (err,squares) => {
         
         let totalNumOfCrimes = 0;
