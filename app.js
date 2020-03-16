@@ -4,16 +4,18 @@ const mysql = require('mysql');
 const app = express();
 
 require('dotenv').config(); // Lets us use the env file
-const port = process.env.PORT || 8080;
+
+const { PORT, DB_HOST, DB_USER, DB_PASS, DB_DATABASE } = process.env;
 
 //Module needed
 const Square = require('./crimeAnalyzerModules/square')
 
+
 let connection = mysql.createConnection({
-	host: process.env.host,
-	user: process.env.user,
-	password: process.env.password,
-	database: process.env.database
+	host: DB_HOST,
+	user: DB_USER,
+	password: DB_PASS,
+	database: DB_DATABASE
 });
 
 connection.connect((err)=> {
@@ -33,12 +35,12 @@ app.get('/crimeAnalyzer', (req,res) => {
     // Updated bigSquare with biased points
     let bigSquareBias = new Square(
         {
-            'lat':  bigSquare.bottomLeft.lat-getSize(), 
-            'long': bigSquare.topLeft.long-getSize()
+            'lat':  bigSquare.bottomLeft.lat-getGridSquareSize(), 
+            'long': bigSquare.topLeft.long-getGridSquareSize()
         },
         {
-            'lat':  bigSquare.topRight.lat+getSize(), 
-            'long': bigSquare.topRight.long+getSize()
+            'lat':  bigSquare.topRight.lat+getGridSquareSize(), 
+            'long': bigSquare.topRight.long+getGridSquareSize()
         }
     );
 
@@ -46,7 +48,7 @@ app.get('/crimeAnalyzer', (req,res) => {
     let grid = [];
     const restrictionLat = `BETWEEN ${bigSquareBias.bottomLeft.lat} AND ${bigSquareBias.topLeft.lat}`;
     const restrictionLong = `BETWEEN ${bigSquareBias.topLeft.long} AND ${bigSquareBias.topRight.long}`
-    let q = `SELECT * FROM grid_${dayOfWeek.toLocaleLowerCase()} WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
+    let q = `SELECT * FROM grid_${dayOfWeek.toLowerCase()} WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
     connection.query(q, (err,squares) => {
         
         let totalNumOfCrimes = 0;
@@ -60,8 +62,8 @@ app.get('/crimeAnalyzer', (req,res) => {
         });
 
         // Get number of windows that passed threshold
-        const activatedWindows = getActivatedWindows(grid,totalNumOfCrimes);
-        console.log(`Number of windows that passed a thr of ${getThreshold(grid,totalNumOfCrimes)} crimes : ${activatedWindows.length}`)
+        const activatedWindows = getActivatedWindows(grid,dayOfWeek);
+        console.log(`Number of windows that passed a thr of ${getThreshold(dayOfWeek)} crimes : ${activatedWindows.length}`)
 
         // Call python Script to display map
         printToMap(currentPoint,destinationPoint,bigSquare,grid,activatedWindows);
@@ -71,21 +73,31 @@ app.get('/crimeAnalyzer', (req,res) => {
 })
 
 // Minimum number of crimes to activate sliding window 
-function getThreshold(grid,totalNumOfCrimes) {
-    const thr = 2.5; // in percent
-    return Math.floor(thr/100*totalNumOfCrimes);
+function getThreshold(dayOfWeek) {
+    // Average number of crimes per square based on weekday
+    const thr = {
+        all: 911,
+        monday: 121,
+        tuesday: 132,
+        wednesday: 137,
+        thursday: 139,
+        friday: 150,
+        saturday: 138,
+        sunday: 117
+    }
+    return thr[dayOfWeek.toLowerCase()];
 }
 
 // Get the windows that pass the threshold value
-function getActivatedWindows(grid,totalNumOfCrimes) {
+function getActivatedWindows(grid,dayOfWeek) {
     //Least number of crimes to pass thr
-    const thr = getThreshold(grid,totalNumOfCrimes); 
+    const thr = getThreshold(dayOfWeek); 
     const activatedWindows = grid.filter(sqr => sqr.numOfCrimes >= thr);
     return activatedWindows;
 }
 
 //The size of each grid square
-function getSize() {
+function getGridSquareSize() {
     const size = 0.0018;
     return size;
 }
@@ -98,7 +110,7 @@ function printToMap(...arg) {
     const pythonProcess = spawn('python',["./vizualization/map.py",...arr]);    
 }
 
-app.listen(port, () => {
-    console.log(`Listening on port ${port}`);
+app.listen(PORT, () => {
+    console.log(`Listening on port ${PORT}`);
     //init();
 })
