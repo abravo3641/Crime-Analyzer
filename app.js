@@ -33,21 +33,12 @@ app.get('/crimeAnalyzer', (req,res) => {
     let bigSquare = new Square(currentPoint,destinationPoint);
 
     // Updated bigSquare with biased points
-    let bigSquareBias = new Square(
-        {
-            'lat':  bigSquare.bottomLeft.lat-getGridSquareSize(), 
-            'long': bigSquare.topLeft.long-getGridSquareSize()
-        },
-        {
-            'lat':  bigSquare.topRight.lat+getGridSquareSize(), 
-            'long': bigSquare.topRight.long+getGridSquareSize()
-        }
-    );
+    let queriedSquare = getQueriedSquare(bigSquare);
 
     //Get Squares that are inside big Biased Square
     let grid = [];
-    const restrictionLat = `BETWEEN ${bigSquareBias.bottomLeft.lat} AND ${bigSquareBias.topLeft.lat}`;
-    const restrictionLong = `BETWEEN ${bigSquareBias.topLeft.long} AND ${bigSquareBias.topRight.long}`
+    const restrictionLat = `BETWEEN ${queriedSquare.bottomLeft.lat} AND ${queriedSquare.topLeft.lat}`;
+    const restrictionLong = `BETWEEN ${queriedSquare.topLeft.long} AND ${queriedSquare.topRight.long}`
     let q = `SELECT * FROM grid_${dayOfWeek.toLowerCase()} WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
     connection.query(q, (err,squares) => {
         
@@ -66,7 +57,7 @@ app.get('/crimeAnalyzer', (req,res) => {
         console.log(`Number of windows that passed a thr of ${getThreshold(dayOfWeek)} crimes : ${activatedWindows.length}`)
 
         // Call python Script to display map
-        printToMap(currentPoint,destinationPoint,bigSquare,grid,activatedWindows);
+        printToMap(currentPoint,destinationPoint,queriedSquare,grid,activatedWindows);
 
         res.json(activatedWindows);
     })
@@ -95,6 +86,27 @@ function getActivatedWindows(grid,dayOfWeek) {
     const activatedWindows = grid.filter(sqr => sqr.numOfCrimes >= thr);
     return activatedWindows;
 }
+
+// Compute the dimensions of queried Squared
+function getQueriedSquare(bigSquare) {
+    /*
+        4 boxes (half a mile) radius for queried square
+        Half a mile padding for each side
+    */
+    const biasedBoxes = 4; 
+
+    return new Square(
+        {
+            'lat':  bigSquare.bottomLeft.lat-(biasedBoxes+1)*getGridSquareSize(), 
+            'long': bigSquare.topLeft.long-(biasedBoxes+1)*getGridSquareSize()
+        },
+        {
+            'lat':  bigSquare.topRight.lat+(biasedBoxes+1)*getGridSquareSize(), 
+            'long': bigSquare.topRight.long+(biasedBoxes+1)*getGridSquareSize()
+        }
+    );
+}
+
 
 //The size of each grid square
 function getGridSquareSize() {
