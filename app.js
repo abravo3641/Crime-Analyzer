@@ -124,5 +124,4 @@ function printToMap(...arg) {
 
 app.listen(PORT, () => {
     console.log(`Listening on port ${PORT}`);
-    //init();
 })
