@@ -2,25 +2,26 @@
 
 const express = require('express');
 const bodyParser = require('body-parser');
-const mysql = require('mysql'); 
+const pgb = require('pg-promise')();
 const app = express();
 
 require('dotenv').config(); // Lets us use the env file
-const port = process.env.PORT || 8080;
+
+const { PORT, DB_HOST, DB_PORT ,DB_USER, DB_PASS, DB_DATABASE } = process.env;
 
 //Module needed
 const Square = require('./crimeAnalyzerModules/square')
 
-let connection = mysql.createConnection({
-	host: process.env.host,
-	user: process.env.user,
-	password: process.env.password,
-	database: process.env.database
+
+const db = pgb({
+    user: DB_USER,
+    password: DB_PASS,
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_DATABASE
 });
 
-connection.connect((err)=> {
-	if (err) throw err;
-}); 
+db.connect()
  
 //Middlewares
 app.use(bodyParser.json());
@@ -33,7 +34,7 @@ function init() {
     let grid = constructGrid(bigSquare);
     
     //make crime grid and save to DB: Uncoment to fill DB 
-    // constructCrimeGrid(grid); 
+    // constructCrimeGrid(grid)
 
     //printToMap({},{lat: 40.677162, long:-74.039831},{lat: 40.879096,long:-73.904479},bigSquare,grid,{})  
 }
@@ -117,37 +118,32 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
 }
 
 //Takes each grid square and finds the number of crimes in each square and saves it to DB
-function constructCrimeGrid(grid) {
+async function constructCrimeGrid(grid) {
     for(let i=0; i<grid.length; i++) {
-        let q = `SELECT COUNT(*) as count FROM nyCrime WHERE latitude BETWEEN ${grid[i].lowerLeft.lat} AND ${grid[i].upperLeft.lat} AND longitude BETWEEN ${grid[i].upperLeft.long} AND ${grid[i].upperRight.long}`;
-        connection.query(q, (err,res) => {
-            console.log(`Getting Number of crimes inside sqr #${i}`)
-            if(err) throw new Error;
-            const numOfCrimes = res[0].count;
+        let q = `SELECT COUNT(*) as count FROM ny_crime_manhattan WHERE latitude BETWEEN ${grid[i].lowerLeft.lat} AND ${grid[i].upperLeft.lat} AND longitude BETWEEN ${grid[i].upperLeft.long} AND ${grid[i].upperRight.long}`;
+        const res = await db.any(q,)
+        console.log(`Getting Number of crimes inside sqr #${i}`)
+        const numOfCrimes = res[0].count;
 
-            //Check that there are crimes before saving square
-            if(numOfCrimes != 0) {
-                grid[i].numOfCrimes = numOfCrimes;
-                //Save Crime square to DB
-                saveSquare(grid[i]);
-
-            }
-        }) 
+        //Check that there are crimes before saving square
+        if(numOfCrimes != 0) {
+            grid[i].numOfCrimes = numOfCrimes;
+            //Save Crime square to DB
+            saveSquare(grid[i]);
+        }
+        
     }
 
     function saveSquare(square) {
-        //Getting it into the correct format for mysql
-        let sqr = {
-            upper_left_lat: square.upperLeft.lat,
-            upper_left_long: square.upperLeft.long,
-            lower_right_lat: square.lowerRight.lat,
-            lower_right_long: square.lowerRight.long,
-            number_of_crimes: square.numOfCrimes
-        }; 
+        const {upperLeft,lowerRight,numOfCrimes} = square;
+        const q = 'INSERT INTO grid(upper_left_lat, upper_left_long, lower_right_lat, lower_right_long, number_of_crimes) VALUES($1, $2, $3, $4, $5)';
+        const values = [upperLeft.lat,upperLeft.long,lowerRight.lat,lowerRight.long,numOfCrimes];
 
-        connection.query('INSERT INTO Grid SET ?',sqr,(err,results,fields) => {
-            if(err) throw err;
+        db.none(q, values)
+        .catch(error => {
+            console.log(error);
         });
+
     }
 
 }
@@ -161,7 +157,7 @@ function printToMap(...arg) {
 
 
 
-app.listen(port, () => {
-    console.log(`Listening on port ${port}`);
+app.listen(PORT, () => {
+    console.log(`Listening on port ${PORT}`);
     init();
 })

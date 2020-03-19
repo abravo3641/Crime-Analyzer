@@ -1,91 +1,139 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const mysql = require('mysql'); 
+const pgb = require('pg-promise')();
 const app = express();
 
 require('dotenv').config(); // Lets us use the env file
-const port = process.env.PORT || 8080;
+
+const { PORT, DB_HOST, DB_PORT ,DB_USER, DB_PASS, DB_DATABASE } = process.env;
 
 //Module needed
 const Square = require('./crimeAnalyzerModules/square')
 
-let connection = mysql.createConnection({
-	host: process.env.host,
-	user: process.env.user,
-	password: process.env.password,
-	database: process.env.database
+
+const db = pgb({
+    user: DB_USER,
+    password: DB_PASS,
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_DATABASE
 });
 
-connection.connect((err)=> {
-	if (err) throw err;
-}); 
+db.connect()
  
 //Middlewares
 app.use(bodyParser.json());
 
 app.get('/crimeAnalyzer', (req,res) => {
+
     //Req should contain a current point, destination point, and dayOfWeek that user is using application
     let {currentPoint,destinationPoint,dayOfWeek} = req.body;
+    dayOfWeek = dayOfWeek.toLowerCase(); 
 
     // Getting coordinates of the bigSquare
     let bigSquare = new Square(currentPoint,destinationPoint);
 
     // Updated bigSquare with biased points
-    let bigSquareBias = new Square(
-        {
-            'lat':  bigSquare.bottomLeft.lat-getSize(), 
-            'long': bigSquare.topLeft.long-getSize()
-        },
-        {
-            'lat':  bigSquare.topRight.lat+getSize(), 
-            'long': bigSquare.topRight.long+getSize()
-        }
-    );
+    let queriedSquare = getQueriedSquare(bigSquare);
 
-    //Get Squares that are inside big Biased Square
-    let grid = [];
-    const restrictionLat = `BETWEEN ${bigSquareBias.bottomLeft.lat} AND ${bigSquareBias.topLeft.lat}`;
-    const restrictionLong = `BETWEEN ${bigSquareBias.topLeft.long} AND ${bigSquareBias.topRight.long}`
-    let q = `SELECT * FROM Grid WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
-    connection.query(q, (err,squares) => {
+
+    getQueriedSquares(queriedSquare,dayOfWeek).then(squares => {
         
-        let totalNumOfCrimes = 0;
-        squares.forEach(sqr => {
-            let Pi = {'lat': sqr.upper_left_lat , 'long': sqr.upper_left_long};
-            let Pj = {'lat': sqr.lower_right_lat, 'long': sqr.lower_right_long};
-            let sqrObj = new Square(Pi,Pj);
-            sqrObj.numOfCrimes = sqr.number_of_crimes;
-            totalNumOfCrimes += sqr.number_of_crimes;
-            grid.push(sqrObj);
-        });
+        // Cast database squares into module 'Square' obj
+        const grid = castSquares(squares);
 
         // Get number of windows that passed threshold
-        const activatedWindows = getActivatedWindows(grid,totalNumOfCrimes);
-        console.log(`Number of windows that passed a thr of ${getThreshold(grid,totalNumOfCrimes)} crimes : ${activatedWindows.length}`)
+        const activatedWindows = getActivatedWindows(grid,dayOfWeek);
+        console.log(`Number of windows that passed a thr of ${getThreshold(dayOfWeek)} crimes : ${activatedWindows.length}`)
 
         // Call python Script to display map
-        printToMap(currentPoint,destinationPoint,bigSquare,grid,activatedWindows);
+        printToMap(currentPoint,destinationPoint,queriedSquare,grid,activatedWindows);
 
         res.json(activatedWindows);
     })
 })
 
+async function getQueriedSquares(queriedSquare,dayOfWeek) {
+    const restrictionLat = `BETWEEN ${queriedSquare.bottomLeft.lat} AND ${queriedSquare.topLeft.lat}`;
+    const restrictionLong = `BETWEEN ${queriedSquare.topLeft.long} AND ${queriedSquare.topRight.long}`
+    // grid element is between the queried square
+    let q = `SELECT * FROM grid_${dayOfWeek.toLowerCase()} WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
+
+    try {
+        // Query precumpuded grid
+        const squares = await db.any(q, [true]);
+        // success
+        return squares;
+    } 
+    catch(e) {
+        // error
+        console.log(e);
+    }
+}
+
+// Takes database squares and cast them using 'Square' module
+function castSquares(squares) {
+    let grid = [];
+    let totalNumOfCrimes = 0;
+    //Comberting each grid element into squares by using module
+    squares.forEach(sqr => {
+        let Pi = {'lat': sqr.upper_left_lat , 'long': sqr.upper_left_long};
+        let Pj = {'lat': sqr.lower_right_lat, 'long': sqr.lower_right_long};
+        let sqrObj = new Square(Pi,Pj);
+        sqrObj.numOfCrimes = sqr.number_of_crimes;
+        totalNumOfCrimes += sqr.number_of_crimes;
+        grid.push(sqrObj);
+    });
+    return grid;
+}
+
 // Minimum number of crimes to activate sliding window 
-function getThreshold(grid,totalNumOfCrimes) {
-    const thr = 2.5; // in percent
-    return Math.floor(thr/100*totalNumOfCrimes);
+function getThreshold(dayOfWeek) {
+    // Average number of crimes per square based on weekday
+    const thr = {
+        all: 911,
+        monday: 121,
+        tuesday: 132,
+        wednesday: 137,
+        thursday: 139,
+        friday: 150,
+        saturday: 138,
+        sunday: 117
+    }
+    return thr[dayOfWeek.toLowerCase()];
 }
 
 // Get the windows that pass the threshold value
-function getActivatedWindows(grid,totalNumOfCrimes) {
+function getActivatedWindows(grid,dayOfWeek) {
     //Least number of crimes to pass thr
-    const thr = getThreshold(grid,totalNumOfCrimes); 
+    const thr = getThreshold(dayOfWeek); 
     const activatedWindows = grid.filter(sqr => sqr.numOfCrimes >= thr);
     return activatedWindows;
 }
 
+// Compute the dimensions of queried Squared
+function getQueriedSquare(bigSquare) {
+    /*
+        4 boxes (half a mile) radius for queried square
+        Half a mile padding for each side
+    */
+    const biasedBoxes = 4; 
+    const gridSquareSize = getGridSquareSize();
+    return new Square(
+        {
+            'lat':  bigSquare.bottomLeft.lat-(biasedBoxes+1)*gridSquareSize, 
+            'long': bigSquare.topLeft.long-(biasedBoxes+1)*gridSquareSize
+        },
+        {
+            'lat':  bigSquare.topRight.lat+(biasedBoxes+1)*gridSquareSize, 
+            'long': bigSquare.topRight.long+(biasedBoxes+1)*gridSquareSize
+        }
+    );
+}
+
+
 //The size of each grid square
-function getSize() {
+function getGridSquareSize() {
     const size = 0.0018;
     return size;
 }
@@ -98,7 +146,4 @@ function printToMap(...arg) {
     const pythonProcess = spawn('python',["./vizualization/map.py",...arr]);    
 }
 
-app.listen(port, () => {
-    console.log(`Listening on port ${port}`);
-    //init();
-})
+app.listen(PORT, () => { console.log(`Running on port: ${PORT}`) });
