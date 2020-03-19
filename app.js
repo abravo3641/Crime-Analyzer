@@ -1,33 +1,34 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const mysql = require('mysql'); 
+const pgb = require('pg-promise')();
 const app = express();
 
 require('dotenv').config(); // Lets us use the env file
 
-const { PORT, DB_HOST, DB_USER, DB_PASS, DB_DATABASE } = process.env;
+const { PORT, DB_HOST, DB_PORT ,DB_USER, DB_PASS, DB_DATABASE } = process.env;
 
 //Module needed
 const Square = require('./crimeAnalyzerModules/square')
 
 
-let connection = mysql.createConnection({
-	host: DB_HOST,
-	user: DB_USER,
-	password: DB_PASS,
-	database: DB_DATABASE
+const db = pgb({
+    user: DB_USER,
+    password: DB_PASS,
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_DATABASE
 });
 
-connection.connect((err)=> {
-	if (err) throw err;
-}); 
+db.connect()
  
 //Middlewares
 app.use(bodyParser.json());
 
 app.get('/crimeAnalyzer', (req,res) => {
+
     //Req should contain a current point, destination point, and dayOfWeek that user is using application
     let {currentPoint,destinationPoint,dayOfWeek} = req.body;
+    dayOfWeek = dayOfWeek.toLowerCase(); 
 
     // Getting coordinates of the bigSquare
     let bigSquare = new Square(currentPoint,destinationPoint);
@@ -35,22 +36,11 @@ app.get('/crimeAnalyzer', (req,res) => {
     // Updated bigSquare with biased points
     let queriedSquare = getQueriedSquare(bigSquare);
 
-    //Get Squares that are inside big Biased Square
-    let grid = [];
-    const restrictionLat = `BETWEEN ${queriedSquare.bottomLeft.lat} AND ${queriedSquare.topLeft.lat}`;
-    const restrictionLong = `BETWEEN ${queriedSquare.topLeft.long} AND ${queriedSquare.topRight.long}`
-    let q = `SELECT * FROM grid_${dayOfWeek.toLowerCase()} WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
-    connection.query(q, (err,squares) => {
+
+    getQueriedSquares(queriedSquare,dayOfWeek).then(squares => {
         
-        let totalNumOfCrimes = 0;
-        squares.forEach(sqr => {
-            let Pi = {'lat': sqr.upper_left_lat , 'long': sqr.upper_left_long};
-            let Pj = {'lat': sqr.lower_right_lat, 'long': sqr.lower_right_long};
-            let sqrObj = new Square(Pi,Pj);
-            sqrObj.numOfCrimes = sqr.number_of_crimes;
-            totalNumOfCrimes += sqr.number_of_crimes;
-            grid.push(sqrObj);
-        });
+        // Cast database squares into module 'Square' obj
+        const grid = castSquares(squares);
 
         // Get number of windows that passed threshold
         const activatedWindows = getActivatedWindows(grid,dayOfWeek);
@@ -62,6 +52,40 @@ app.get('/crimeAnalyzer', (req,res) => {
         res.json(activatedWindows);
     })
 })
+
+async function getQueriedSquares(queriedSquare,dayOfWeek) {
+    const restrictionLat = `BETWEEN ${queriedSquare.bottomLeft.lat} AND ${queriedSquare.topLeft.lat}`;
+    const restrictionLong = `BETWEEN ${queriedSquare.topLeft.long} AND ${queriedSquare.topRight.long}`
+    // grid element is between the queried square
+    let q = `SELECT * FROM grid_${dayOfWeek.toLowerCase()} WHERE upper_left_lat ${restrictionLat} AND upper_left_long ${restrictionLong} AND lower_right_lat ${restrictionLat} AND lower_right_long ${restrictionLong}`;
+
+    try {
+        // Query precumpuded grid
+        const squares = await db.any(q, [true]);
+        // success
+        return squares;
+    } 
+    catch(e) {
+        // error
+        console.log(e);
+    }
+}
+
+// Takes database squares and cast them using 'Square' module
+function castSquares(squares) {
+    let grid = [];
+    let totalNumOfCrimes = 0;
+    //Comberting each grid element into squares by using module
+    squares.forEach(sqr => {
+        let Pi = {'lat': sqr.upper_left_lat , 'long': sqr.upper_left_long};
+        let Pj = {'lat': sqr.lower_right_lat, 'long': sqr.lower_right_long};
+        let sqrObj = new Square(Pi,Pj);
+        sqrObj.numOfCrimes = sqr.number_of_crimes;
+        totalNumOfCrimes += sqr.number_of_crimes;
+        grid.push(sqrObj);
+    });
+    return grid;
+}
 
 // Minimum number of crimes to activate sliding window 
 function getThreshold(dayOfWeek) {
@@ -94,15 +118,15 @@ function getQueriedSquare(bigSquare) {
         Half a mile padding for each side
     */
     const biasedBoxes = 4; 
-
+    const gridSquareSize = getGridSquareSize();
     return new Square(
         {
-            'lat':  bigSquare.bottomLeft.lat-(biasedBoxes+1)*getGridSquareSize(), 
-            'long': bigSquare.topLeft.long-(biasedBoxes+1)*getGridSquareSize()
+            'lat':  bigSquare.bottomLeft.lat-(biasedBoxes+1)*gridSquareSize, 
+            'long': bigSquare.topLeft.long-(biasedBoxes+1)*gridSquareSize
         },
         {
-            'lat':  bigSquare.topRight.lat+(biasedBoxes+1)*getGridSquareSize(), 
-            'long': bigSquare.topRight.long+(biasedBoxes+1)*getGridSquareSize()
+            'lat':  bigSquare.topRight.lat+(biasedBoxes+1)*gridSquareSize, 
+            'long': bigSquare.topRight.long+(biasedBoxes+1)*gridSquareSize
         }
     );
 }
@@ -122,7 +146,4 @@ function printToMap(...arg) {
     const pythonProcess = spawn('python',["./vizualization/map.py",...arr]);    
 }
 
-app.listen(PORT, () => {
-    console.log(`Listening on port ${PORT}`);
-    //init();
-})
+app.listen(PORT, () => { console.log(`Running on port: ${PORT}`) });
