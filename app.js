@@ -27,11 +27,11 @@ app.use(bodyParser.json());
 app.get('/crimeAnalyzer', (req,res) => {
 
     //Req should contain a current point, destination point, and dayOfWeek that user is using application
-    let {currentPoint,destinationPoint,dayOfWeek} = req.body;
+    let {source,destination,dayOfWeek} = req.body;
     dayOfWeek = dayOfWeek.toLowerCase(); 
 
     // Getting coordinates of the bigSquare
-    let bigSquare = new Square(currentPoint,destinationPoint);
+    let bigSquare = new Square(source,destination); 
 
     // Updated bigSquare with biased points
     let queriedSquare = getQueriedSquare(bigSquare);
@@ -43,11 +43,15 @@ app.get('/crimeAnalyzer', (req,res) => {
         const grid = castSquares(squares);
 
         // Get number of windows that passed threshold
-        const activatedWindows = getActivatedWindows(grid,dayOfWeek);
+        let activatedWindows = getActivatedWindows(grid,dayOfWeek);
+
+        // sort by number of crimes and get top 20 windows (HERE maps limitation)
+        activatedWindows = activatedWindows.sort(windowCmp).reverse().slice(0,20)
+
         console.log(`Number of windows that passed a thr of ${getThreshold(dayOfWeek)} crimes : ${activatedWindows.length}`)
 
         // Call python Script to display map
-        printToMap(currentPoint,destinationPoint,queriedSquare,grid,activatedWindows);
+        printToMap(source,destination,queriedSquare,grid,activatedWindows);
 
         res.json(activatedWindows);
     })
@@ -129,6 +133,18 @@ function getQueriedSquare(bigSquare) {
             'long': bigSquare.topRight.long+(biasedBoxes+1)*gridSquareSize
         }
     );
+}
+
+// Window comparison
+function windowCmp(w1,w2) {
+    let comparison = 0
+    if(w1.numOfCrimes > w2.numOfCrimes){
+        comparison = 1
+    }
+    else if(w1.numOfCrimes < w2.numOfCrimes) {
+        comparison = -1
+    }
+    return comparison
 }
 
 
