@@ -44,13 +44,17 @@ class Square {
         return {length,width};
     }
 
+    isEqual(window) {
+        const topLeftCheck = this.topLeft.lat == window.topLeft.lat && this.topLeft.long == window.topLeft.long;
+        const topRightCheck = this.topRight.lat == window.topRight.lat && this.topRight.long == window.topRight.long
+        const bottomLeftCheck = this.bottomLeft.lat == window.bottomLeft.lat && this.bottomLeft.long == window.bottomLeft.long
+        const bottomRightCheck = this.bottomRight.lat == window.bottomRight.lat && this.bottomRight.long == window.bottomRight.long
+
+        return (topLeftCheck && topRightCheck && bottomLeftCheck && bottomRightCheck);
+    }
+
     clone() {
-        return {
-            topLeft: {...this.topLeft},
-            topRight: {...this.topRight},
-            bottomLeft: {...this.bottomLeft},
-            bottomRight: {...this.bottomRight}
-        }
+        return (new Square(this.topLeft,this.bottomRight));
     }
 }
 
