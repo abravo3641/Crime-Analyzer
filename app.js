@@ -9,6 +9,7 @@ const { PORT, DB_HOST, DB_PORT ,DB_USER, DB_PASS, DB_DATABASE } = process.env;
 
 //Module needed
 const Square = require('./crimeAnalyzerModules/square')
+const Grid = require('./crimeAnalyzerModules/grid')
 
 
 const db = pgb({
@@ -45,10 +46,17 @@ app.get('/crimeAnalyzer', (req,res) => {
         // Get number of windows that passed threshold
         let activatedWindows = getActivatedWindows(grid,dayOfWeek);
 
-        // sort by number of crimes and get top 20 windows (HERE maps limitation)
-        activatedWindows = activatedWindows.sort(windowCmp).reverse().slice(0,20)
+        // Get all of manhattan regridded region
+        let g = new Grid(activatedWindows)
+
+        // Package adjacent activated rectangles into one
+        g.maximumlRectangles() 
+        activatedWindows = g.postGrid
 
         console.log(`Number of windows that passed a thr of ${getThreshold(dayOfWeek)} crimes : ${activatedWindows.length}`)
+
+        // sort by number of crimes and get top 20 windows (HERE maps limitation)
+        activatedWindows = activatedWindows.sort(windowCmp).reverse().slice(0,20)
 
         // Call python Script to display map
         printToMap(source,destination,queriedSquare,grid,activatedWindows);
@@ -154,7 +162,6 @@ function getGridSquareSize() {
     return size;
 }
 
-
 function printToMap(...arg) {
     const {spawn} = require("child_process");
     //JSON array that we will pass to python process
@@ -163,3 +170,12 @@ function printToMap(...arg) {
 }
 
 app.listen(PORT, () => { console.log(`Running on port: ${PORT}`) });
+
+
+
+
+
+
+
+
+
