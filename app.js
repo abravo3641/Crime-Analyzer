@@ -9,6 +9,7 @@ const { PORT, DB_HOST, DB_PORT ,DB_USER, DB_PASS, DB_DATABASE } = process.env;
 
 //Module needed
 const Square = require('./crimeAnalyzerModules/square')
+const Grid = require('./crimeAnalyzerModules/grid')
 
 
 const db = pgb({
@@ -27,11 +28,11 @@ app.use(bodyParser.json());
 app.get('/crimeAnalyzer', (req,res) => {
 
     //Req should contain a current point, destination point, and dayOfWeek that user is using application
-    let {currentPoint,destinationPoint,dayOfWeek} = req.body;
+    let {source,destination,dayOfWeek} = req.body;
     dayOfWeek = dayOfWeek.toLowerCase(); 
 
     // Getting coordinates of the bigSquare
-    let bigSquare = new Square(currentPoint,destinationPoint);
+    let bigSquare = new Square(source,destination); 
 
     // Updated bigSquare with biased points
     let queriedSquare = getQueriedSquare(bigSquare);
@@ -43,11 +44,22 @@ app.get('/crimeAnalyzer', (req,res) => {
         const grid = castSquares(squares);
 
         // Get number of windows that passed threshold
-        const activatedWindows = getActivatedWindows(grid,dayOfWeek);
+        let activatedWindows = getActivatedWindows(grid,dayOfWeek);
+
+        // Get all of manhattan regridded region
+        let g = new Grid(activatedWindows)
+
+        // Package adjacent activated rectangles into one
+        g.maximumlRectangles() 
+        activatedWindows = g.postGrid
+
         console.log(`Number of windows that passed a thr of ${getThreshold(dayOfWeek)} crimes : ${activatedWindows.length}`)
 
+        // sort by number of crimes and get top 20 windows (HERE maps limitation)
+        activatedWindows = activatedWindows.sort(windowCmp).reverse().slice(0,20)
+
         // Call python Script to display map
-        printToMap(currentPoint,destinationPoint,queriedSquare,grid,activatedWindows);
+        printToMap(source,destination,queriedSquare,grid,activatedWindows);
 
         res.json(activatedWindows);
     })
@@ -131,13 +143,24 @@ function getQueriedSquare(bigSquare) {
     );
 }
 
+// Window comparison
+function windowCmp(w1,w2) {
+    let comparison = 0
+    if(w1.numOfCrimes > w2.numOfCrimes){
+        comparison = 1
+    }
+    else if(w1.numOfCrimes < w2.numOfCrimes) {
+        comparison = -1
+    }
+    return comparison
+}
+
 
 //The size of each grid square
 function getGridSquareSize() {
     const size = 0.0018;
     return size;
 }
-
 
 function printToMap(...arg) {
     const {spawn} = require("child_process");
@@ -147,3 +170,12 @@ function printToMap(...arg) {
 }
 
 app.listen(PORT, () => { console.log(`Running on port: ${PORT}`) });
+
+
+
+
+
+
+
+
+

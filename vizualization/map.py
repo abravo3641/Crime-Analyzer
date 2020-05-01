@@ -14,7 +14,7 @@ def main():
     drawPoint(gmap,destinationLocation,'#00ff00',30)
 
     # display grid of sliding window
-    drawGrid(gmap,grid,'black',2.5)
+    # drawGrid(gmap,grid,'black',2.5)
 
     # Draw the activated windows that passed thr
     drawActivatedWindows(gmap,activatedWindows,'#E3850D')
