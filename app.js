@@ -101,6 +101,10 @@ function castSquares(squares) {
 
 // Minimum number of crimes to activate sliding window 
 function getThreshold(dayOfWeek) {
+    // "slider value" (1-10), 10 being the most safe and 0 being the least safe
+    const sliderVal = 10;
+    const scaleFactor = sliderVal / 5;
+
     // Average number of crimes per square based on weekday
     const thr = {
         all: 911,
@@ -112,6 +116,11 @@ function getThreshold(dayOfWeek) {
         saturday: 138,
         sunday: 117
     }
+
+    Object.keys(thr).forEach(day => {
+        thr[day] *= scaleFactor
+    })
+
     return thr[dayOfWeek.toLowerCase()];
 }
 
