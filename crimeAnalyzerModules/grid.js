@@ -1,5 +1,5 @@
 const Square = require('./square')
-
+ 
 class Grid {
     constructor(activatedWindows) {
         this.size = 0.0018; //size of each square in degrees
@@ -88,35 +88,35 @@ class Grid {
     maximumRectangle() {
         if(this.grid.length == 0){
             return 0;
+        }
+        const m = this.grid.length, n = this.grid[0].length;
+        
+        let maxArea = 0;
+        let coordinates = {topLeft:'',topRight:'', bottomLeft:'', bottomRight:'', length:0, width:0};
+        let histo = new Array(n).fill(0)
+        
+        for(let r=0; r<m; r++) {
+            for(let c=0; c<n; c++) {
+                //Update histogram
+                histo[c] = (this.grid[r][c].active)? histo[c] + 1 : 0;
             }
-            const m = this.grid.length, n = this.grid[0].length;
-            
-            let maxArea = 0;
-            let coordinates = {topLeft:'',topRight:'', bottomLeft:'', bottomRight:'', length:0, width:0};
-            let histo = new Array(n).fill(0)
-            
-            for(let r=0; r<m; r++) {
-                for(let c=0; c<n; c++) {
-                    //Update histogram
-                    histo[c] = (this.grid[r][c].active)? histo[c] + 1 : 0;
-                }
-                //update maxArea with the maximum area from this row's histogram
-                let histoMaxArea, start, length;
-                [histoMaxArea, start, length] = this.max_square_histo(histo)
-            
-                if (histoMaxArea > maxArea) {
-                    maxArea = histoMaxArea
-                    let width = histoMaxArea / length
-                    
-                    coordinates.topLeft = [r-width+1,start]
-                    coordinates.topRight = [r-width+1,start+length-1]
-                    coordinates.bottomRight = [r,start+length-1]
-                    coordinates.bottomLeft = [r,start]
-                    coordinates.length = length
-                    coordinates.width = width
-                }     
-            }
-            return coordinates;
+            //update maxArea with the maximum area from this row's histogram
+            let histoMaxArea, start, length;
+            [histoMaxArea, start, length] = this.max_square_histo(histo)
+        
+            if (histoMaxArea > maxArea) {
+                maxArea = histoMaxArea
+                let width = histoMaxArea / length
+                
+                coordinates.topLeft = [r-width+1,start]
+                coordinates.topRight = [r-width+1,start+length-1]
+                coordinates.bottomRight = [r,start+length-1]
+                coordinates.bottomLeft = [r,start]
+                coordinates.length = length
+                coordinates.width = width
+            }     
+        }
+        return coordinates;
     }
 
     max_square_histo(heights) {
@@ -131,9 +131,9 @@ class Grid {
                 runningMin = Math.min(runningMin,heights[j]);
                 let currentArea = runningMin*(j-i+1)
                 if(currentArea > maxArea) {
-                left = i;
-                right = j;
-                maxArea = currentArea;
+                    left = i;
+                    right = j;
+                    maxArea = currentArea;
                 }
 
             }
